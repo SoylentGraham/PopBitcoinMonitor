@@ -1,24 +1,34 @@
-/*
-    HTTP over TLS (HTTPS) example sketch
-
-    This example demonstrates how to use
-    WiFiClientSecure class to access HTTPS API.
-    We fetch and display the status of
-    esp8266/Arduino project continuous integration
-    build.
-
-    Limitations:
-      only RSA certificates
-      no support of Perfect Forward Secrecy (PFS)
-      TLSv1.2 is supported since version 2.4.0-rc1
-
-    Created by Ivan Grokhotkov, 2015.
-    This example is in public domain.
-*/
-
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
-#include <ESP8266WiFiMulti.h>
+//#include <ESP8266WiFiMulti.h>
+
+#define ENABLE_LED
+
+
+#if defined(ENABLE_LED)
+#include "LedControl.h"
+#define ALLOC_LED
+#endif
+
+//  https://github.com/espressif/arduino-esp32/issues/801#issuecomment-383081333
+//  pin6 maybe causing watchdog timeout
+//  pin 1 causing watchdog
+//  pin 5  causing watchdog
+//  pin 6 causing watchdog
+//  324
+#define LEDPIN_DATAIN 4 
+#define LEDPIN_CLOCK  2
+#define LEDPIN_CS     3
+#define LED_COUNT     1
+#define LED_BRIGHTNESS  7
+
+#if defined(ENABLE_LED)
+#if defined(ALLOC_LED)
+LedControl* pLedDisplay = nullptr;
+#else
+LedControl LedDisplay = LedControl(LEDPIN_DATAIN,LEDPIN_CLOCK,LEDPIN_CS,LED_COUNT);
+#endif
+#endif
 
 #ifndef STASSID
 #define STASSID "FoxDrop"
@@ -41,9 +51,6 @@ const char apicryptowatch_fingerprint[] PROGMEM = "25 b9 42 e7 41 37 d4 95 50 49
 
 //ESP8266WiFiMulti wifiMulti;
 
-void setup() 
-{
-}
 
 bool GetPrice(int& CurrentPrice)
 {
@@ -109,23 +116,99 @@ bool GetPrice(int& CurrentPrice)
 
 void delaySecs(int Secs)
 {
-  delay(1000*Secs);
+  yield();
+   ESP.wdtFeed();
+ delay(1000*Secs);
+  ESP.wdtFeed();
 }
 
-void SetDisplay(String Text)
+void SetDisplay(const char* Text)
 {
   Serial.println("------ DISPLAY ------");
   Serial.println(Text);
   Serial.println("------ >>>><<< ------");
+
+#if defined(ENABLE_LED)
+  int DisplayIndex = 0;
+#if defined(ALLOC_LED)
+auto& LedDisplay = *pLedDisplay;
+#endif
+  LedDisplay.clearDisplay(DisplayIndex);
+  
+  for ( int Digit=0;  Digit<8;  Digit++ )
+  {
+    bool Decimal = true;
+    char Char = Text[Digit];
+    if ( Char == 0 )
+      break;
+    LedDisplay.setChar(DisplayIndex, Digit, Char,Decimal);
+    Serial.print("digit");
+    Serial.print(Digit);
+    Serial.println("");
+  }
+#endif
   delay(100);
+}
+
+
+void InitDisplay()
+{
+  #if defined(ALLOC_LED)
+  if ( pLedDisplay )
+    return;
+    #endif
+/*
+
+  //pinMode(SPI_CLK,OUTPUT);
+  digitalWrite(0,LOW);
+  digitalWrite(2,LOW);
+  digitalWrite(3,LOW);
+    */
+  Serial.println("Initialising display");
+#if defined(ALLOC_LED)
+ pLedDisplay = new LedControl(LEDPIN_DATAIN,LEDPIN_CLOCK,LEDPIN_CS,LED_COUNT);
+#endif
+  Serial.println("display ready!");
+
+
+#if defined(ENABLE_LED)
+#if defined(ALLOC_LED)
+auto& LedDisplay = *pLedDisplay;
+#endif
+ int devices=LedDisplay.getDeviceCount();
+
+  //for(int address=0;address<devices;address++) 
+  int address=0;
+  {
+    //The MAX72XX is in power-saving mode on startup
+    LedDisplay.shutdown(address,false);
+   // Set the brightness to a medium values 
+    LedDisplay.setIntensity(address,LED_BRIGHTNESS);
+    // and clear the display
+    LedDisplay.clearDisplay(address);
+    LedDisplay.setRow(address,0,0xff);
+   // LedDisplay.setRow(address,1,0xff);
+    //LedDisplay.setRow(address,2,0xff);
+    //LedDisplay.setRow(address,3,0xff);
+  }
+  #endif
+   SetDisplay("Hello");
+}
+
+void setup() 
+{
+  InitSerial();
+ InitDisplay();
+  SetDisplay("Hello");
+  delay(1000);
 }
 
 bool SerialInitialised = false;
 bool InitSerial()
 {
   if ( SerialInitialised )
-  return true;
-  Serial.begin(57600);
+    return true;
+  Serial.begin(115200); //
   Serial.println();
 
   SerialInitialised = true;
@@ -134,6 +217,7 @@ bool InitSerial()
 
 bool InitWifi()
 {
+  Serial.println("InitWifi");
   if ( WiFi.status() == WL_CONNECTED )
     return true;
     
@@ -143,11 +227,11 @@ bool InitWifi()
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  String ConnectingString = "wifi";
+ // String ConnectingString = "wifi";
   while (WiFi.status() != WL_CONNECTED)
   {
-    ConnectingString += ".";
-    SetDisplay(ConnectingString);
+    //ConnectingString += ".";
+    //SetDisplay(ConnectingString);
     delay(500);
   }
 
@@ -160,11 +244,12 @@ bool InitWifi()
   //  show ip!
   for ( int i=0;  i<4;  i++ )
   {
+    /*
     String IpString = "";
     IpString += Ip[i];
     IpString += ".";
     SetDisplay(IpString);
-    delaySecs(1);
+    delaySecs(1);*/
   }
   
   return true;
@@ -173,6 +258,9 @@ bool InitWifi()
 
 void loop() 
 {
+   Serial.println("Loop");
+  InitDisplay();
+
   if ( !InitSerial() )
   {
     SetDisplay("NOSERIAL!");
@@ -194,9 +282,9 @@ void loop()
     delaySecs(30);
     return;
   }
-
+/*
   String PriceString;
   PriceString += Price;
-  SetDisplay(PriceString);
-  delaySecs(60);
+  SetDisplay(PriceString);*/
+  delaySecs(30);
 }
