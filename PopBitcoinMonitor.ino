@@ -18,6 +18,7 @@
 
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
+#include <ESP8266WiFiMulti.h>
 
 #ifndef STASSID
 #define STASSID "FoxDrop"
@@ -38,23 +39,14 @@ const char* request_url = "/markets/kraken/btcgbp/price";
 const char apicryptowatch_fingerprint[] PROGMEM = "25 b9 42 e7 41 37 d4 95 50 49 6c 66 3d 80 1d 2c cc 3b e4 46";
 #define fingerprint apicryptowatch_fingerprint
 
-void setup() {
-  Serial.begin(57600);
-  Serial.println();
-  Serial.print("connecting to ");
-  Serial.println(ssid);
-  WiFi.mode(WIFI_STA);
-  //WiFi.mode(WIFI_AP);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+//ESP8266WiFiMulti wifiMulti;
 
+void setup() 
+{
+}
+
+bool GetPrice(int& CurrentPrice)
+{
   // Use WiFiClientSecure class to create TLS connection
   WiFiClientSecure client;
   Serial.print("connecting to ");
@@ -63,9 +55,10 @@ void setup() {
   Serial.printf("Using fingerprint '%s'\n", fingerprint);
   client.setFingerprint(fingerprint);
 
-  if (!client.connect(host, httpsPort)) {
+  if (!client.connect(host, httpsPort)) 
+  {
     Serial.println("connection failed");
-    return;
+    return false;
   }
 
   String url = request_url;
@@ -85,7 +78,17 @@ void setup() {
       break;
     }
   }
-  String line = client.readStringUntil('\n');
+
+  /*
+  {"result":{"price":5514.2},"allowance":{"cost":525989,"remaining":3999474011,"remainingPaid":0,"upgrade":"Upgrade for a higher allowance, starting at $15/month for 16 seconds/hour. https://cryptowat.ch/pricing"}}
+   */
+  String line = client.readStringUntil('}');
+  CurrentPrice = -1;
+  if ( line.startsWith("{\"result\":{\"price\":") )
+  {
+    //  extract price
+    CurrentPrice = 9999;    
+  }
   /*
   if (line.startsWith("{\"state\":\"success\"")) {
     Serial.println("esp8266/Arduino CI successfull!");
@@ -97,7 +100,103 @@ void setup() {
   Serial.println(line);
   Serial.println("==========");
   Serial.println("closing connection");
+
+   if ( CurrentPrice < 0 )
+    return false;
+    return true;
 }
 
-void loop() {
+
+void delaySecs(int Secs)
+{
+  delay(1000*Secs);
+}
+
+void SetDisplay(String Text)
+{
+  Serial.println("------ DISPLAY ------");
+  Serial.println(Text);
+  Serial.println("------ >>>><<< ------");
+  delay(100);
+}
+
+bool SerialInitialised = false;
+bool InitSerial()
+{
+  if ( SerialInitialised )
+  return true;
+  Serial.begin(57600);
+  Serial.println();
+
+  SerialInitialised = true;
+  return true;
+}
+
+bool InitWifi()
+{
+  if ( WiFi.status() == WL_CONNECTED )
+    return true;
+    
+  Serial.print("connecting to ");
+  Serial.println(ssid);
+  SetDisplay(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  String ConnectingString = "wifi";
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    ConnectingString += ".";
+    SetDisplay(ConnectingString);
+    delay(500);
+  }
+
+  auto Ip = WiFi.localIP();
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(Ip);
+
+  //  show ip!
+  for ( int i=0;  i<4;  i++ )
+  {
+    String IpString = "";
+    IpString += Ip[i];
+    IpString += ".";
+    SetDisplay(IpString);
+    delaySecs(1);
+  }
+  
+  return true;
+}
+
+
+void loop() 
+{
+  if ( !InitSerial() )
+  {
+    SetDisplay("NOSERIAL!");
+    delaySecs(1);
+    return;
+  }
+
+  if ( !InitWifi() )
+  {
+    SetDisplay("NOIWIFI!");
+    delaySecs(1);
+    return;
+  }
+
+  int Price = 0;
+  if ( !GetPrice(Price) )
+  {
+    SetDisplay("ERROR!");
+    delaySecs(30);
+    return;
+  }
+
+  String PriceString;
+  PriceString += Price;
+  SetDisplay(PriceString);
+  delaySecs(60);
 }
