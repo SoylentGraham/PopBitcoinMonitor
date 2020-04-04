@@ -552,23 +552,34 @@ void loop()
     return;
   }
 
-  String PriceString;
-  PriceString += PriceMajor;
-  PriceString += '.';
-
+	//	countdown changes
+	const char* ChangeString = "";
 	if ( LastPriceMajor != -1 )
 	{
 		if ( PriceMajor == LastPriceMajor )
-			PriceString += "   =";
+			ChangeString = "   =";
 		else if ( PriceMajor > LastPriceMajor )
-			PriceString += "  -+";
+			ChangeString = "  -+";
 		else
-			PriceString += "   -";
+			ChangeString = "   -";
 	}
-  
-  //PriceString += PriceMinor;
-  SetDisplay(PriceString);
-  delaySecs(RefreshSecs);
+	else 
+	{
+		//LastPriceMajor = PriceMajor;
+		LastPriceMajor = (PriceMajor / 4) * 3;
+	}
 
-  LastPriceMajor = PriceMajor;
+	int Step = (PriceMajor > LastPriceMajor) ? 1 : -1;
+	for ( int i=LastPriceMajor;	i!=PriceMajor;	i+=Step )
+	{
+		String PriceString;
+		PriceString += i;
+		PriceString += '.';
+		PriceString += ChangeString;
+		SetDisplay(PriceString);
+  		delay(20);
+	}
+	LastPriceMajor = PriceMajor;
+
+	delaySecs(RefreshSecs);
 }
