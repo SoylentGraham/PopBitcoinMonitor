@@ -1,6 +1,15 @@
+//	todo: detect the right board
+#define ARDUINO_WIFI
+
+#if defined(ARDUINO_WIFI)
+//	gr: if no shield, then wrong include
+//#include <WiFi101.h>
+#include <WiFiNINA.h>
+#else
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
 //#include <ESP8266WiFiMulti.h>
+#endif
 
 #define ENABLE_LED
 
@@ -16,9 +25,9 @@
 //  pin 5  causing watchdog
 //  pin 6 causing watchdog
 //  324
-#define LEDPIN_DATAIN 4 
-#define LEDPIN_CLOCK  2
-#define LEDPIN_CS     3
+#define LEDPIN_DATAIN 0
+#define LEDPIN_CLOCK  1
+#define LEDPIN_CS     2
 #define LED_COUNT     1
 #define LED_BRIGHTNESS  7
 
@@ -30,10 +39,11 @@ LedControl LedDisplay = LedControl(LEDPIN_DATAIN,LEDPIN_CLOCK,LEDPIN_CS,LED_COUN
 #endif
 #endif
 
-#ifndef STASSID
-#define STASSID "FoxDrop"
-#define STAPSK  "Basement123"
-#endif
+//#define STASSID "ZaegerMeister2"
+//#define STAPSK  "InTheYear2525"
+#define STASSID "Tequila"
+#define STAPSK  "hello123"
+
 
 const char* ssid = STASSID;
 const char* password = STAPSK;
@@ -52,15 +62,23 @@ const char apicryptowatch_fingerprint[] PROGMEM = "25 b9 42 e7 41 37 d4 95 50 49
 //ESP8266WiFiMulti wifiMulti;
 
 
-bool GetPrice(int& CurrentPrice)
+bool GetPrice(int& PriceMajor,int& PriceMinor)
 {
   // Use WiFiClientSecure class to create TLS connection
-  WiFiClientSecure client;
+ #if defined(ARDUINO_WIFI)
+WiFiSSLClient client;
+ #else
+WiFiClientSecure client;
+ #endif
+ 
   Serial.print("connecting to ");
   Serial.println(host);
 
+#if defined(ARDUINO_WIFI)
+#else
   Serial.printf("Using fingerprint '%s'\n", fingerprint);
   client.setFingerprint(fingerprint);
+#endif
 
   if (!client.connect(host, httpsPort)) 
   {
@@ -86,43 +104,47 @@ bool GetPrice(int& CurrentPrice)
     }
   }
 
-  /*
-  {"result":{"price":5514.2},"allowance":{"cost":525989,"remaining":3999474011,"remainingPaid":0,"upgrade":"Upgrade for a higher allowance, starting at $15/month for 16 seconds/hour. https://cryptowat.ch/pricing"}}
-   */
-  String line = client.readStringUntil('}');
-  CurrentPrice = -1;
-  if ( line.startsWith("{\"result\":{\"price\":") )
-  {
-    //  extract price
-    CurrentPrice = 9999;    
-  }
-  /*
-  if (line.startsWith("{\"state\":\"success\"")) {
-    Serial.println("esp8266/Arduino CI successfull!");
-  } else {
-    Serial.println("esp8266/Arduino CI has failed");
-  }*/
-  Serial.println("reply was:");
-  Serial.println("==========");
-  Serial.println(line);
-  Serial.println("==========");
-  Serial.println("closing connection");
+	/*
+	{"result":{"price":5514.2},"allowance":{"cost":525989,"remaining":3999474011,"remainingPaid":0,"upgrade":"Upgrade for a higher allowance, starting at $15/month for 16 seconds/hour. https://cryptowat.ch/pricing"}}
+	*/
+	String Line = client.readStringUntil('}');
+	const char* Prefix = "{\"result\":{\"price\":";
+	client.close();
 
-   if ( CurrentPrice < 0 )
-    return false;
+	Serial.println("Reply:");
+	Serial.println(Line);
+	
+	if ( !Line.startsWith(Prefix) )
+	{
+		Serial.print("Reply didn't start with ");
+		Serial.println(Prefix);
+		SetDisplay(Line);
+		return;
+	}
+
+	if ( !GetFloat(Major,Minor,Line.toCharArray()+strlen(Prefix)) )
+	{
+		Serial.println("Error getting number from reply");
+		SetDisplay(Line);
+		return;
+	}
+
     return true;
 }
 
 
 void delaySecs(int Secs)
 {
-  yield();
+	#if defined(ARDUINO_WIFI)
+	#else
+	  yield();
    ESP.wdtFeed();
+	  #endif
  delay(1000*Secs);
-  ESP.wdtFeed();
+  //ESP.wdtFeed();
 }
 
-void SetDisplay(const char* Text)
+void SetDisplay(const String& Text,int StartChar=0)
 {
   Serial.println("------ DISPLAY ------");
   Serial.println(Text);
@@ -140,8 +162,11 @@ auto& LedDisplay = *pLedDisplay;
     bool Decimal = true;
     char Char = Text[Digit];
     if ( Char == 0 )
-      break;
-    LedDisplay.setChar(DisplayIndex, Digit, Char,Decimal);
+    {
+  	    break;
+    }
+	int DigitIndex = 7-Digit;
+    LedDisplay.setChar(DisplayIndex, DigitIndex, Char,Decimal);
     Serial.print("digit");
     Serial.print(Digit);
     Serial.println("");
@@ -186,21 +211,22 @@ auto& LedDisplay = *pLedDisplay;
     LedDisplay.setIntensity(address,LED_BRIGHTNESS);
     // and clear the display
     LedDisplay.clearDisplay(address);
+    //	test, this turns on different digits
     LedDisplay.setRow(address,0,0xff);
-   // LedDisplay.setRow(address,1,0xff);
-    //LedDisplay.setRow(address,2,0xff);
-    //LedDisplay.setRow(address,3,0xff);
+    LedDisplay.setRow(address,2,0xff);
+    LedDisplay.setRow(address,4,0xff);
+    LedDisplay.setRow(address,6,0xff);
+    LedDisplay.setRow(address,8,0xff);
   }
   #endif
-   SetDisplay("Hello");
 }
 
 void setup() 
 {
-  InitSerial();
- InitDisplay();
-  SetDisplay("Hello");
-  delay(1000);
+	InitSerial();
+	InitDisplay();
+	SetDisplay("Hello");
+	delay(200);
 }
 
 bool SerialInitialised = false;
@@ -208,11 +234,76 @@ bool InitSerial()
 {
   if ( SerialInitialised )
     return true;
-  Serial.begin(115200); //
-  Serial.println();
 
-  SerialInitialised = true;
-  return true;
+   while ( !Serial )
+   {}
+	Serial.begin(115200); //
+	Serial.println();
+	Serial.println("Serial initialised");
+
+	SerialInitialised = true;
+	return true;
+}
+
+String IPAddressToString(IPAddress& Address)
+{
+	String ipString = String(Address[0]) + '.' + String(Address[1]) + '.' + String(Address[2]) + '.' + String(Address[3]);
+	return ipString;
+}
+
+const char* wl_status_to_string(wl_status_t status) 
+{
+  switch (status) {
+    case WL_NO_SHIELD: return "WL_NO_SHIELD";
+    case WL_IDLE_STATUS: return "WL_IDLE_STATUS";
+    case WL_NO_SSID_AVAIL: return "WL_NO_SSID_AVAIL";
+    case WL_SCAN_COMPLETED: return "WL_SCAN_COMPLETED";
+    case WL_CONNECTED: return "WL_CONNECTED";
+    case WL_CONNECT_FAILED: return "WL_CONNECT_FAILED";
+    case WL_CONNECTION_LOST: return "WL_CONNECTION_LOST";
+    case WL_DISCONNECTED: return "WL_DISCONNECTED";
+    case WL_AP_LISTENING: return "WL_AP_LISTENING";
+    case WL_AP_CONNECTED: return "WL_AP_CONNECTED";
+    case WL_AP_FAILED: return "WL_AP_FAILED";
+    #if defined(WL_PROVISIONING)
+    case WL_PROVISIONING: return "WL_PROVISIONING";
+    #endif
+    #if defined(WL_PROVISIONING_FAILED)
+    case WL_PROVISIONING_FAILED: return "WL_PROVISIONING_FAILED";
+    #endif
+    default:				return "<wl_status_t unknown>";
+  }
+}
+const char* wl_status_to_string(uint8_t status) 
+{
+	return wl_status_to_string((wl_status_t)status);
+}
+
+void listNetworks() 
+{
+  // scan for nearby networks:
+  Serial.println("** Scan Networks **");
+  int numSsid = WiFi.scanNetworks();
+  if (numSsid == -1) {
+    Serial.println("Couldn't get a wifi connection");
+    while (true);
+  }
+
+  // print the list of networks seen:
+  Serial.print("number of available networks:");
+  Serial.println(numSsid);
+
+  // print the network number and name for each network found:
+  for (int thisNet = 0; thisNet < numSsid; thisNet++) {
+    Serial.print(thisNet);
+    Serial.print(") ");
+    Serial.println(WiFi.SSID(thisNet));
+    Serial.print("\tSignal: ");
+    Serial.println(WiFi.RSSI(thisNet));
+    //Serial.print(" dBm");
+    //Serial.print("\tEncryption: ");
+    //printEncryptionType(WiFi.encryptionType(thisNet));
+  }
 }
 
 bool InitWifi()
@@ -224,33 +315,61 @@ bool InitWifi()
   Serial.print("connecting to ");
   Serial.println(ssid);
   SetDisplay(ssid);
-
+#if !defined(ARDUINO_WIFI)
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
- // String ConnectingString = "wifi";
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    //ConnectingString += ".";
-    //SetDisplay(ConnectingString);
-    delay(500);
-  }
+#endif
 
-  auto Ip = WiFi.localIP();
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(Ip);
+//WiFi.mode(WIFI_STA);
 
-  //  show ip!
-  for ( int i=0;  i<4;  i++ )
-  {
-    /*
-    String IpString = "";
-    IpString += Ip[i];
-    IpString += ".";
+
+	String fv = WiFi.firmwareVersion();
+	if (fv < WIFI_FIRMWARE_LATEST_VERSION) 
+	{
+		Serial.println("Please upgrade the firmware");
+	}
+
+	listNetworks();
+
+	Serial.print("init wifi status"); Serial.println(wl_status_to_string(WiFi.status()));
+	while (WiFi.status() != WL_CONNECTED)
+	{
+		auto Status = WiFi.status();
+ 		Serial.print("wifi status"); Serial.println(wl_status_to_string(Status));
+
+		bool Reconnect = false;
+		switch(Status)
+		{
+			case WL_NO_SSID_AVAIL:
+				listNetworks();
+				Reconnect = true;
+				break;
+				
+			case WL_CONNECT_FAILED:
+			case WL_DISCONNECTED:
+			case WL_IDLE_STATUS:
+			case WL_SCAN_COMPLETED:
+				Reconnect = true;
+				break;
+		}
+		if ( Reconnect )
+ 		{
+			Serial.println("WiFi.begin");
+			auto NewStatus = WiFi.begin(ssid, password);
+ 			Serial.print("WiFi.begin status"); Serial.println(wl_status_to_string(NewStatus));
+ 		}
+
+		Serial.println("waiting to connect...");
+	    delay(500);
+	}
+	
+	Serial.println("WiFi connected");
+	Serial.println("IP address: ");
+	IPAddress Ip = WiFi.localIP();
+	Serial.println(Ip);
+
+	auto IpString = IPAddressToString(Ip);
     SetDisplay(IpString);
-    delaySecs(1);*/
-  }
+    delaySecs(1);
   
   return true;
 }
@@ -275,16 +394,17 @@ void loop()
     return;
   }
 
-  int Price = 0;
-  if ( !GetPrice(Price) )
+  int PriceMajor = 0;
+  int PriceMinor = 0;
+  if ( !GetPrice(PriceMajor,PriceMinor) )
   {
     SetDisplay("ERROR!");
     delaySecs(30);
     return;
   }
-/*
+
   String PriceString;
   PriceString += Price;
-  SetDisplay(PriceString);*/
-  delaySecs(30);
+  SetDisplay(PriceString);
+  delaySecs(60);
 }
