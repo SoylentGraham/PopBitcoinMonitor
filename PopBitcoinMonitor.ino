@@ -62,79 +62,108 @@ const char apicryptowatch_fingerprint[] PROGMEM = "25 b9 42 e7 41 37 d4 95 50 49
 
 //ESP8266WiFiMulti wifiMulti;
 
-
-void SetDisplay(const String& Text,bool Scroll=true)
+class CharDot_t
 {
-  Serial.println("------ DISPLAY ------");
-  Serial.println(Text);
-  Serial.println("------ >>>><<< ------");
+public:
+	CharDot_t(char Char='\0',bool Dot=false) :
+		mChar	( Char ),
+		mDot	( Dot )
+	{
+	}
+	char	mChar;
+	bool	mDot;
+};
 
-#if defined(ENABLE_LED)
-  int DisplayIndex = 0;
+void DisplayChars(const CharDot_t* Chars,int CharCount)
+{
+	int DisplayIndex = 0;
 #if defined(ALLOC_LED)
-auto& LedDisplay = *pLedDisplay;
+	auto& LedDisplay = *pLedDisplay;
 #endif
-  LedDisplay.clearDisplay(DisplayIndex);
+	LedDisplay.clearDisplay(DisplayIndex);
 
-  int Digit = 0;
-  for ( int i=0;  i<16;  i++,Digit++ )
-  {
-    bool Decimal = false;
-    char Char = Text[i];
-    if ( Char == 0 )
-    {
-  	    break;
-    }
-
-	//	special cases
-	//	insert ^ before T
-	if ( Char == 'T' )
+	for ( int Digit=0;	Digit<CharCount && Digit<8;	Digit++ )
 	{
+		auto& Char = Chars[Digit];
 		int DigitIndex = 7-Digit;
-		LedDisplay.setChar(DisplayIndex, DigitIndex,'^',false);
-		Digit++;
+		LedDisplay.setChar( DisplayIndex, DigitIndex, Char.mChar, Char.mDot );
 	}
+}
 
-	if ( Char == 'M' )
+
+void SetDisplay(const String& Text,int ScrollSpeed=200)
+{
+	Serial.println("------ DISPLAY ------");
+	Serial.println(Text);
+	Serial.println("------ >>>><<< ------");
+
+	const int MAX_LENGTH = 100;
+	int Length = 0;
+	CharDot_t CharBuffer[MAX_LENGTH];
+
+	auto PushChar = [&](char Char,bool Dot=false)
 	{
-		int DigitIndex = 7-Digit;
-		LedDisplay.setChar(DisplayIndex, DigitIndex,'N',false);
-		Digit++;
-		Char = '7';
-	}
+		if ( Length >= MAX_LENGTH )
+			return;
+		CharBuffer[Length] = CharDot_t( Char, Dot );
+		Length++;
+	};
 	
-	if ( Char == 'W' )
+	auto PushChars = [&](char CharA,char CharB)
 	{
-		int DigitIndex = 7-Digit;
-		LedDisplay.setChar(DisplayIndex, DigitIndex,'L',false);
-		Digit++;
-		Char = 'U';
+		PushChar(CharA);
+		PushChar(CharB);
+	};
+	
+	auto PushDot = [&]()
+	{
+		//	if no last char, add just a dot
+		if ( Length == 0 )
+		{
+			PushChar(' ',true);
+			return;
+		}
+		
+		//	dot already on last char, add a dot on its own
+		if ( CharBuffer[Length-1].mDot )
+		{
+			PushChar(' ',true);
+			return;
+		}
+
+		//	add the dot to prev char
+		CharBuffer[Length-1].mDot = true;
+	};
+
+	//	build the display
+	for ( int i=0;  true;  i++ )
+	{
+ 		char Char = Text[i];
+		if ( Char == 0 )
+	  	    break;
+
+		//	special cases
+		switch ( Char )
+		{
+			case 'T':	PushChars('^','T');	break;
+			case 'M':	PushChars('N','N');	break;
+			case 'm':	PushChars('n','n');	break;
+			case 'W':	PushChars('U','U');	break;
+			case 'w':	PushChars('u','u');	break;
+			case '.':	PushDot();	break;
+			default:	PushChar(Char);	break;
+		}
 	}
 
-	if ( Char == 'w' )
+	int Scroll = 0;
+	do 
 	{
-		int DigitIndex = 7-Digit;
-		LedDisplay.setChar(DisplayIndex, DigitIndex,'l',false);
-		Digit++;
-		Char = 'u';
+		if ( Scroll > 0 )
+			delay(ScrollSpeed);
+		DisplayChars( CharBuffer+Scroll, Length-Scroll );
+		Scroll++;
 	}
-
-	if ( Text[i+1] == '.' )
-	{
-		Decimal = true;
-		i++;
-	}
-
-	{
-		int DigitIndex = 7-Digit;
-	    LedDisplay.setChar(DisplayIndex, DigitIndex, Char,Decimal);
-	}
-    Serial.print("digit");
-    Serial.print(Digit);
-    Serial.println("");
-  }
-#endif
-  delay(100);
+	while ( Length-Scroll > 7 );
 }
 
 
@@ -308,7 +337,7 @@ auto& LedDisplay = *pLedDisplay;
   }
 
 	//	show alphabet
-	SetDisplay("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz!_.\"?",true);	
+	SetDisplay("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz!_.\"?",40);	
 	delay(100);
   
   #endif
@@ -462,7 +491,7 @@ bool InitWifi()
 	Serial.println(Ip);
 
 	auto IpString = IPAddressToString(Ip);
-    SetDisplay(IpString,true);
+    SetDisplay(IpString);
     delaySecs(1);
   
   return true;
