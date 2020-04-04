@@ -44,13 +44,14 @@ LedControl LedDisplay = LedControl(LEDPIN_DATAIN,LEDPIN_CLOCK,LEDPIN_CS,LED_COUN
 #define STASSID "Tequila"
 #define STAPSK  "hello123"
 
-
 const char* ssid = STASSID;
 const char* password = STAPSK;
 
 const char* host = "api.cryptowat.ch";
 const int httpsPort = 443;
 const char* request_url = "/markets/kraken/btcgbp/price";
+const int RefreshSecs = 30;
+
 // Use web browser to view and copy
 // SHA1 fingerprint of the certificate
 //  gr: got correct one from serial debug
@@ -62,7 +63,7 @@ const char apicryptowatch_fingerprint[] PROGMEM = "25 b9 42 e7 41 37 d4 95 50 49
 //ESP8266WiFiMulti wifiMulti;
 
 
-void SetDisplay(const String& Text,int StartChar=0)
+void SetDisplay(const String& Text,bool Scroll=true)
 {
   Serial.println("------ DISPLAY ------");
   Serial.println(Text);
@@ -76,7 +77,7 @@ auto& LedDisplay = *pLedDisplay;
   LedDisplay.clearDisplay(DisplayIndex);
 
   int Digit = 0;
-  for ( int i=0;  i<16;  i++ )
+  for ( int i=0;  i<16;  i++,Digit++ )
   {
     bool Decimal = false;
     char Char = Text[i];
@@ -84,16 +85,50 @@ auto& LedDisplay = *pLedDisplay;
     {
   	    break;
     }
-	int DigitIndex = 7-Digit;
-	Digit++;
+
+	//	special cases
+	//	insert ^ before T
+	if ( Char == 'T' )
+	{
+		int DigitIndex = 7-Digit;
+		LedDisplay.setChar(DisplayIndex, DigitIndex,'^',false);
+		Digit++;
+	}
+
+	if ( Char == 'M' )
+	{
+		int DigitIndex = 7-Digit;
+		LedDisplay.setChar(DisplayIndex, DigitIndex,'N',false);
+		Digit++;
+		Char = '7';
+	}
+	
+	if ( Char == 'W' )
+	{
+		int DigitIndex = 7-Digit;
+		LedDisplay.setChar(DisplayIndex, DigitIndex,'L',false);
+		Digit++;
+		Char = 'U';
+	}
+
+	if ( Char == 'w' )
+	{
+		int DigitIndex = 7-Digit;
+		LedDisplay.setChar(DisplayIndex, DigitIndex,'l',false);
+		Digit++;
+		Char = 'u';
+	}
 
 	if ( Text[i+1] == '.' )
 	{
 		Decimal = true;
 		i++;
 	}
-	
-    LedDisplay.setChar(DisplayIndex, DigitIndex, Char,Decimal);
+
+	{
+		int DigitIndex = 7-Digit;
+	    LedDisplay.setChar(DisplayIndex, DigitIndex, Char,Decimal);
+	}
     Serial.print("digit");
     Serial.print(Digit);
     Serial.println("");
@@ -108,24 +143,24 @@ bool GetFloat(int& Major,int& Minor,const char* NumberString)
 	Major = 0;
 	Minor = 0;
 	int PartCount = 0;
-	Serial.print("GetFloat() ");	Serial.println(NumberString);
+	//Serial.print("GetFloat() ");	Serial.println(NumberString);
 		
 	for ( int i=0;	true;	i++ )
 	{
 		char Char = NumberString[i];
 		if ( Char == '\0' )
 		{	
-			Serial.println("Got terminator");
+			//Serial.println("Got terminator");
 			break;
 		}
 		if ( Char == '.' )
 		{
-			Serial.println("Got.");
+			//Serial.println("Got.");
 			PartCount++;
 			continue;
 		}
 		int Number = Char - '0';
-		Serial.print("Got number"); Serial.println(Number);
+		//Serial.print("Got number"); Serial.println(Number);
 		//	no more numbers or .
 		if ( Number < 0 || Number > 9 )
 			break;
@@ -271,6 +306,11 @@ auto& LedDisplay = *pLedDisplay;
     LedDisplay.setRow(address,6,0xff);
     LedDisplay.setRow(address,8,0xff);
   }
+
+	//	show alphabet
+	SetDisplay("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz!_.\"?",true);	
+	delay(100);
+  
   #endif
 }
 
@@ -278,7 +318,7 @@ void setup()
 {
 	InitSerial();
 	InitDisplay();
-	SetDisplay("Hello");
+	SetDisplay("Hello!");
 	delay(200);
 }
 
@@ -367,7 +407,7 @@ bool InitWifi()
     
   Serial.print("connecting to ");
   Serial.println(ssid);
-  SetDisplay(ssid);
+  SetDisplay( String(ssid)+String("...?") );
   delay(2000);
 #if !defined(ARDUINO_WIFI)
   WiFi.mode(WIFI_STA);
@@ -422,7 +462,7 @@ bool InitWifi()
 	Serial.println(Ip);
 
 	auto IpString = IPAddressToString(Ip);
-    SetDisplay(IpString);
+    SetDisplay(IpString,true);
     delaySecs(1);
   
   return true;
@@ -436,14 +476,14 @@ void loop()
 
   if ( !InitSerial() )
   {
-    SetDisplay("NOSERIAL!");
+    SetDisplay("No serial!");
     delaySecs(1);
     return;
   }
 
   if ( !InitWifi() )
   {
-    SetDisplay("NOIWIFI!");
+    SetDisplay("Wifi failed!");
     delaySecs(1);
     return;
   }
@@ -452,7 +492,7 @@ void loop()
   int PriceMinor = 0;
   if ( !GetPrice(PriceMajor,PriceMinor) )
   {
-    SetDisplay("ERROR!");
+    SetDisplay("Error with price!");
     delaySecs(30);
     return;
   }
@@ -462,5 +502,5 @@ void loop()
   PriceString += '.';
   PriceString += PriceMinor;
   SetDisplay(PriceString);
-  delaySecs(60);
+  delaySecs(RefreshSecs);
 }
