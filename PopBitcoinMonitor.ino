@@ -62,6 +62,87 @@ const char apicryptowatch_fingerprint[] PROGMEM = "25 b9 42 e7 41 37 d4 95 50 49
 //ESP8266WiFiMulti wifiMulti;
 
 
+void SetDisplay(const String& Text,int StartChar=0)
+{
+  Serial.println("------ DISPLAY ------");
+  Serial.println(Text);
+  Serial.println("------ >>>><<< ------");
+
+#if defined(ENABLE_LED)
+  int DisplayIndex = 0;
+#if defined(ALLOC_LED)
+auto& LedDisplay = *pLedDisplay;
+#endif
+  LedDisplay.clearDisplay(DisplayIndex);
+
+  int Digit = 0;
+  for ( int i=0;  i<16;  i++ )
+  {
+    bool Decimal = false;
+    char Char = Text[i];
+    if ( Char == 0 )
+    {
+  	    break;
+    }
+	int DigitIndex = 7-Digit;
+	Digit++;
+
+	if ( Text[i+1] == '.' )
+	{
+		Decimal = true;
+		i++;
+	}
+	
+    LedDisplay.setChar(DisplayIndex, DigitIndex, Char,Decimal);
+    Serial.print("digit");
+    Serial.print(Digit);
+    Serial.println("");
+  }
+#endif
+  delay(100);
+}
+
+
+bool GetFloat(int& Major,int& Minor,const char* NumberString)
+{
+	Major = 0;
+	Minor = 0;
+	int PartCount = 0;
+	Serial.print("GetFloat() ");	Serial.println(NumberString);
+		
+	for ( int i=0;	true;	i++ )
+	{
+		char Char = NumberString[i];
+		if ( Char == '\0' )
+		{	
+			Serial.println("Got terminator");
+			break;
+		}
+		if ( Char == '.' )
+		{
+			Serial.println("Got.");
+			PartCount++;
+			continue;
+		}
+		int Number = Char - '0';
+		Serial.print("Got number"); Serial.println(Number);
+		//	no more numbers or .
+		if ( Number < 0 || Number > 9 )
+			break;
+
+		int& Value = ( PartCount == 0 ) ? Major : Minor;
+		Value *= 10;
+		Value += Number;
+	}
+
+	//	made no changes, didn't parse at least major
+	if ( Major == 0 && Minor == 0 && PartCount == 0 )
+		return false;
+
+	return true;
+}
+	
+
 bool GetPrice(int& PriceMajor,int& PriceMinor)
 {
   // Use WiFiClientSecure class to create TLS connection
@@ -109,7 +190,7 @@ WiFiClientSecure client;
 	*/
 	String Line = client.readStringUntil('}');
 	const char* Prefix = "{\"result\":{\"price\":";
-	client.close();
+	client.stop();
 
 	Serial.println("Reply:");
 	Serial.println(Line);
@@ -119,14 +200,17 @@ WiFiClientSecure client;
 		Serial.print("Reply didn't start with ");
 		Serial.println(Prefix);
 		SetDisplay(Line);
-		return;
+		return false;
 	}
 
-	if ( !GetFloat(Major,Minor,Line.toCharArray()+strlen(Prefix)) )
+	const int PrefixLen = strlen(Prefix);
+	char PriceStringBuffer[PrefixLen+20];
+ 	Line.toCharArray(PriceStringBuffer,sizeof(PriceStringBuffer));
+	if ( !GetFloat(PriceMajor,PriceMinor,PriceStringBuffer+PrefixLen) )
 	{
 		Serial.println("Error getting number from reply");
 		SetDisplay(Line);
-		return;
+		return false;
 	}
 
     return true;
@@ -142,37 +226,6 @@ void delaySecs(int Secs)
 	  #endif
  delay(1000*Secs);
   //ESP.wdtFeed();
-}
-
-void SetDisplay(const String& Text,int StartChar=0)
-{
-  Serial.println("------ DISPLAY ------");
-  Serial.println(Text);
-  Serial.println("------ >>>><<< ------");
-
-#if defined(ENABLE_LED)
-  int DisplayIndex = 0;
-#if defined(ALLOC_LED)
-auto& LedDisplay = *pLedDisplay;
-#endif
-  LedDisplay.clearDisplay(DisplayIndex);
-  
-  for ( int Digit=0;  Digit<8;  Digit++ )
-  {
-    bool Decimal = true;
-    char Char = Text[Digit];
-    if ( Char == 0 )
-    {
-  	    break;
-    }
-	int DigitIndex = 7-Digit;
-    LedDisplay.setChar(DisplayIndex, DigitIndex, Char,Decimal);
-    Serial.print("digit");
-    Serial.print(Digit);
-    Serial.println("");
-  }
-#endif
-  delay(100);
 }
 
 
@@ -315,6 +368,7 @@ bool InitWifi()
   Serial.print("connecting to ");
   Serial.println(ssid);
   SetDisplay(ssid);
+  delay(2000);
 #if !defined(ARDUINO_WIFI)
   WiFi.mode(WIFI_STA);
 #endif
@@ -404,7 +458,9 @@ void loop()
   }
 
   String PriceString;
-  PriceString += Price;
+  PriceString += PriceMajor;
+  PriceString += '.';
+  PriceString += PriceMinor;
   SetDisplay(PriceString);
   delaySecs(60);
 }
