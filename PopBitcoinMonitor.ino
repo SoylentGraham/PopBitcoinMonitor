@@ -25,9 +25,9 @@
 //  pin 5  causing watchdog
 //  pin 6 causing watchdog
 //  324
-#define LEDPIN_DATAIN 0
-#define LEDPIN_CLOCK  1
-#define LEDPIN_CS     2
+#define LEDPIN_DATAIN 5
+#define LEDPIN_CLOCK  3
+#define LEDPIN_CS     4
 #define LED_COUNT     1
 #define LED_BRIGHTNESS  7
 
@@ -39,14 +39,17 @@ LedControl LedDisplay = LedControl(LEDPIN_DATAIN,LEDPIN_CLOCK,LEDPIN_CS,LED_COUN
 #endif
 #endif
 
+#define STASSID "Espolon"
+#define STAPSK  ""
 //#define STASSID "ZaegerMeister2"
-//#define STAPSK  "InTheYear2525"
-#define STASSID "Tequila"
-#define STAPSK  "hello123"
+//#define STAPSK  "Hello123456"
+//#define STASSID "Tequila"
+//#define STAPSK  "hello123"
 
 const char* ssid = STASSID;
 const char* password = STAPSK;
 
+//	https://api.cryptowat.ch/markets/kraken/btcgbp/price
 const char* host = "api.cryptowat.ch";
 const int httpsPort = 443;
 const char* request_url = "/markets/kraken/btcgbp/price";
@@ -433,6 +436,28 @@ bool InitWifi()
   Serial.println("InitWifi");
   if ( WiFi.status() == WL_CONNECTED )
     return true;
+
+
+	String fv = WiFi.firmwareVersion();
+	if (fv < WIFI_FIRMWARE_LATEST_VERSION) 
+	{
+		Serial.println("Please upgrade the firmware");
+	}
+
+	byte mac[6];
+	WiFi.macAddress(mac);
+	Serial.print("MAC: ");
+	Serial.print(mac[5],HEX);
+	Serial.print(":");
+  Serial.print(mac[4],HEX);
+  Serial.print(":");
+  Serial.print(mac[3],HEX);
+  Serial.print(":");
+  Serial.print(mac[2],HEX);
+  Serial.print(":");
+  Serial.print(mac[1],HEX);
+  Serial.print(":");
+  Serial.println(mac[0],HEX);
     
   Serial.print("connecting to ");
   Serial.println(ssid);
@@ -444,12 +469,6 @@ bool InitWifi()
 
 //WiFi.mode(WIFI_STA);
 
-
-	String fv = WiFi.firmwareVersion();
-	if (fv < WIFI_FIRMWARE_LATEST_VERSION) 
-	{
-		Serial.println("Please upgrade the firmware");
-	}
 
 	listNetworks();
 
@@ -476,9 +495,15 @@ bool InitWifi()
 		}
 		if ( Reconnect )
  		{
+ 			//	https://forum.arduino.cc/index.php?topic=566338.msg3861355#msg3861355
+			Serial.println("WiFi.end");
+ 			WiFi.end();
+			Serial.println("WiFi.disconnect");
+ 			WiFi.disconnect();
 			Serial.println("WiFi.begin");
 			auto NewStatus = WiFi.begin(ssid, password);
  			Serial.print("WiFi.begin status"); Serial.println(wl_status_to_string(NewStatus));
+ 			delay(2000);
  		}
 
 		Serial.println("waiting to connect...");
@@ -497,6 +522,7 @@ bool InitWifi()
   return true;
 }
 
+int LastPriceMajor = -1;
 
 void loop() 
 {
@@ -529,7 +555,20 @@ void loop()
   String PriceString;
   PriceString += PriceMajor;
   PriceString += '.';
-  PriceString += PriceMinor;
+
+	if ( LastPriceMajor != -1 )
+	{
+		if ( PriceMajor == LastPriceMajor )
+			PriceString += "   =";
+		else if ( PriceMajor > LastPriceMajor )
+			PriceString += "  -+";
+		else
+			PriceString += "   -";
+	}
+  
+  //PriceString += PriceMinor;
   SetDisplay(PriceString);
   delaySecs(RefreshSecs);
+
+  LastPriceMajor = PriceMajor;
 }
