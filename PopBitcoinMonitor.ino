@@ -53,7 +53,7 @@ const char* password = STAPSK;
 const char* host = "api.cryptowat.ch";
 const int httpsPort = 443;
 const char* request_url = "/markets/kraken/btcgbp/price";
-const int RefreshSecs = 30;
+const int RefreshSecs = 25;
 
 // Use web browser to view and copy
 // SHA1 fingerprint of the certificate
@@ -159,7 +159,7 @@ void SetDisplay(const String& Text,int ScrollSpeed=200)
 	}
 
 	int Scroll = 0;
-	bool WillScroll = (Length > 7);
+	bool WillScroll = (Length > 8);
 	do 
 	{
 		DisplayChars( CharBuffer+Scroll, Length-Scroll );
@@ -358,7 +358,7 @@ void setup()
 {
 	InitSerial();
 	InitDisplay();
-	SetDisplay("Bitcoin monitor!");
+	SetDisplay("Bitcoin Monitor!");
 	delay(100);
 }
 
@@ -577,7 +577,8 @@ void loop()
   }
 
 	//	countdown changes
-	const char* ChangeString = "";
+	//	gr: on first display, show currency
+	const char* ChangeString = " GBP";
 	if ( LastPriceMajor != -1 )
 	{
 		if ( PriceMajor == LastPriceMajor )
@@ -601,7 +602,7 @@ void loop()
 		PriceString += '.';
 		PriceString += ChangeString;
 		SetDisplay(PriceString);
-  		delay(20);
+  		delay(10);
 	}
 	LastPriceMajor = PriceMajor;
 
