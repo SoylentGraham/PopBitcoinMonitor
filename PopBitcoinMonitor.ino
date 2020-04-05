@@ -418,6 +418,7 @@ void Reboot(const char* Error)
 	delaySecs(1);
 	SetDisplay("Reboot!");
 	delaySecs(1);
+	NVIC_SystemReset();
 }
 
 void ListSsids() 
@@ -499,9 +500,7 @@ bool InitWifi()
 		{
 			//	after 12 hours or so, this was being reported. Reboot arduino worked
 			case WL_NO_SHIELD:
-				SetDisplay("WL_NO_SHIELD");
-				delay(1000);
-				NVIC_SystemReset();
+				Reboot("WL_NO_SHIELD");
 				break;
 			
 			case WL_NO_SSID_AVAIL:
