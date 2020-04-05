@@ -555,6 +555,9 @@ void loop()
 
   if ( !InitSerial() )
   {
+  	//	reset last-price stuff on failure
+  	LastPriceMajor = -1;
+  	
     SetDisplay("No serial!");
     delaySecs(1);
     return;
@@ -562,6 +565,9 @@ void loop()
 
   if ( !InitWifi() )
   {
+  	//	reset last-price stuff on failure
+  	LastPriceMajor = -1;
+  	
     SetDisplay("Wifi failed!");
     delaySecs(1);
     return;
@@ -571,6 +577,9 @@ void loop()
   int PriceMinor = 0;
   if ( !GetPrice(PriceMajor,PriceMinor) )
   {
+  	//	reset last-price stuff on failure
+  	LastPriceMajor = -1;
+  	
     SetDisplay("Error with price!");
     delaySecs(30);
     return;
