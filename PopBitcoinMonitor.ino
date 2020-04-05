@@ -159,11 +159,20 @@ void SetDisplay(const String& Text,int ScrollSpeed=200)
 	}
 
 	int Scroll = 0;
+	bool WillScroll = (Length > 7);
 	do 
 	{
-		if ( Scroll > 0 )
-			delay(ScrollSpeed);
 		DisplayChars( CharBuffer+Scroll, Length-Scroll );
+
+		//	if we're going to scroll, and this is the first display,
+		//	hold it a bit longer, otherwise we miss the first 
+		//	character as it disapears too quickly
+		auto ScrollMult = ( Scroll == 0 && WillScroll ) ? 4 : 1;
+		//	we don't delay if not scrolling at all
+		if ( !WillScroll )
+			ScrollMult = 0;
+		delay(ScrollSpeed*ScrollMult);
+		
 		Scroll++;
 	}
 	while ( Length-Scroll > 7 );
@@ -341,7 +350,6 @@ auto& LedDisplay = *pLedDisplay;
 
 	//	show alphabet
 	SetDisplay("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz!_.\"?",40);	
-	delay(100);
   
   #endif
 }
@@ -350,8 +358,8 @@ void setup()
 {
 	InitSerial();
 	InitDisplay();
-	SetDisplay("Hello!");
-	delay(200);
+	SetDisplay("Bitcoin monitor!");
+	delay(100);
 }
 
 bool SerialInitialised = false;
@@ -414,7 +422,7 @@ void Reboot(const char* Error)
 
 void ListSsids() 
 {
-	SetDisplay("Scanning...");
+	SetDisplay("Scanning...",100);
 	int SsidCount = WiFi.scanNetworks();
 	if ( SsidCount == -1) 
 	{
@@ -437,8 +445,8 @@ void ListSsids()
 		Debug += "  (";
 		Debug += WiFi.RSSI(i);
 		Debug += ")";
-		SetDisplay(Debug);
-		delay(500);
+		SetDisplay(Debug,100);
+		delay(100);
 	}
 }
 
