@@ -481,6 +481,11 @@ bool InitWifi()
 		bool Reconnect = false;
 		switch(Status)
 		{
+			//	after 12 hours or so, this was being reported. Reboot arduino worked
+			case WL_NO_SHIELD:
+				NVIC_SystemReset();
+				break;
+			
 			case WL_NO_SSID_AVAIL:
 				listNetworks();
 				Reconnect = true;
