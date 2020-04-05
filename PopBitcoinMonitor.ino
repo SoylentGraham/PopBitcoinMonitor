@@ -404,38 +404,49 @@ const char* wl_status_to_string(uint8_t status)
 	return wl_status_to_string((wl_status_t)status);
 }
 
-void listNetworks() 
+void Reboot(const char* Error)
 {
-  // scan for nearby networks:
-  Serial.println("** Scan Networks **");
-  int numSsid = WiFi.scanNetworks();
-  if (numSsid == -1) {
-    Serial.println("Couldn't get a wifi connection");
-    while (true);
-  }
+	SetDisplay(Error);
+	delaySecs(1);
+	SetDisplay("Reboot!");
+	delaySecs(1);
+}
 
-  // print the list of networks seen:
-  Serial.print("number of available networks:");
-  Serial.println(numSsid);
+void ListSsids() 
+{
+	SetDisplay("Scanning...");
+	int SsidCount = WiFi.scanNetworks();
+	if ( SsidCount == -1) 
+	{
+		Reboot("scan error");
+	}
 
-  // print the network number and name for each network found:
-  for (int thisNet = 0; thisNet < numSsid; thisNet++) {
-    Serial.print(thisNet);
-    Serial.print(") ");
-    Serial.println(WiFi.SSID(thisNet));
-    Serial.print("\tSignal: ");
-    Serial.println(WiFi.RSSI(thisNet));
-    //Serial.print(" dBm");
-    //Serial.print("\tEncryption: ");
-    //printEncryptionType(WiFi.encryptionType(thisNet));
-  }
+	{
+		String Debug;
+		Debug += "Found x";
+		Debug += SsidCount;
+		SetDisplay(Debug);
+		delay(500);
+	}
+	
+	for ( int i=0;	i<SsidCount;	i++ )
+	{
+		String Debug;
+		auto Ssid = WiFi.SSID(i);
+		Debug += Ssid;
+		Debug += "  (";
+		Debug += WiFi.RSSI(i);
+		Debug += ")";
+		SetDisplay(Debug);
+		delay(500);
+	}
 }
 
 bool InitWifi()
 {
-  Serial.println("InitWifi");
-  if ( WiFi.status() == WL_CONNECTED )
-    return true;
+	Serial.println("InitWifi");
+	if ( WiFi.status() == WL_CONNECTED )
+    	return true;
 
 
 	String fv = WiFi.firmwareVersion();
@@ -444,33 +455,30 @@ bool InitWifi()
 		Serial.println("Please upgrade the firmware");
 	}
 
+	ListSsids();
+
 	byte mac[6];
 	WiFi.macAddress(mac);
 	Serial.print("MAC: ");
 	Serial.print(mac[5],HEX);
 	Serial.print(":");
-  Serial.print(mac[4],HEX);
-  Serial.print(":");
-  Serial.print(mac[3],HEX);
-  Serial.print(":");
-  Serial.print(mac[2],HEX);
-  Serial.print(":");
-  Serial.print(mac[1],HEX);
-  Serial.print(":");
-  Serial.println(mac[0],HEX);
-    
-  Serial.print("connecting to ");
-  Serial.println(ssid);
-  SetDisplay( String(ssid)+String("...?") );
-  delay(2000);
-#if !defined(ARDUINO_WIFI)
-  WiFi.mode(WIFI_STA);
-#endif
-
-//WiFi.mode(WIFI_STA);
-
-
-	listNetworks();
+	Serial.print(mac[4],HEX);
+	Serial.print(":");
+	Serial.print(mac[3],HEX);
+	Serial.print(":");
+	Serial.print(mac[2],HEX);
+	Serial.print(":");
+	Serial.print(mac[1],HEX);
+	Serial.print(":");
+	Serial.println(mac[0],HEX);
+	
+	Serial.print("connecting to ");
+	Serial.println(ssid);
+	SetDisplay( String(ssid)+String("...?") );
+	delay(1000);
+	#if !defined(ARDUINO_WIFI)
+	WiFi.mode(WIFI_STA);
+	#endif
 
 	Serial.print("init wifi status"); Serial.println(wl_status_to_string(WiFi.status()));
 	while (WiFi.status() != WL_CONNECTED)
@@ -483,11 +491,15 @@ bool InitWifi()
 		{
 			//	after 12 hours or so, this was being reported. Reboot arduino worked
 			case WL_NO_SHIELD:
+				SetDisplay("WL_NO_SHIELD");
+				delay(1000);
 				NVIC_SystemReset();
 				break;
 			
 			case WL_NO_SSID_AVAIL:
-				listNetworks();
+				SetDisplay("WL_NO_SSID_AVAIL");
+				delay(1000);
+				ListSsids();
 				Reconnect = true;
 				break;
 				
