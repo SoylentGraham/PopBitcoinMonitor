@@ -368,8 +368,9 @@ bool InitSerial()
   if ( SerialInitialised )
     return true;
 
-   while ( !Serial )
-   {}
+	//	won't boot if we wait for serial!
+	if ( !Serial )
+	{}
 	Serial.begin(115200); //
 	Serial.println();
 	Serial.println("Serial initialised");
