@@ -1,5 +1,5 @@
 //	todo: detect the right board
-#define ARDUINO_WIFI
+#define ARDUINO_WIFI  //  MKR1010
 
 #if defined(ARDUINO_WIFI)
 //	gr: if no shield, then wrong include
@@ -11,13 +11,19 @@
 //#include <ESP8266WiFiMulti.h>
 #endif
 
-#define ENABLE_LED
 
+#define ENABLE_LED
+#define ShowAlphaBet  false
+#define ShowSsids     false
 
 #if defined(ENABLE_LED)
-#include "LedControl.h"
+//  gr: remember, lots of missing symbols. My improved fork (and MoreCharacters branch!)
+//  https://github.com/SoylentGraham/LedControl
+#include "LedControlSoylentGraham.h"
 #define ALLOC_LED
 #endif
+
+
 
 //  https://github.com/espressif/arduino-esp32/issues/801#issuecomment-383081333
 //  pin6 maybe causing watchdog timeout
@@ -77,7 +83,7 @@ public:
 	bool	mDot;
 };
 
-void DisplayChars(const CharDot_t* Chars,int CharCount)
+void DisplayChars(const class CharDot_t* Chars,int CharCount)
 {
 	int DisplayIndex = 0;
 #if defined(ALLOC_LED)
@@ -264,9 +270,12 @@ WiFiClientSecure client;
 	/*
 	{"result":{"price":5514.2},"allowance":{"cost":525989,"remaining":3999474011,"remainingPaid":0,"upgrade":"Upgrade for a higher allowance, starting at $15/month for 16 seconds/hour. https://cryptowat.ch/pricing"}}
 	*/
+  //  gr: some junk being read out, so skip until brace
+  client.readStringUntil('{');
 	String Line = client.readStringUntil('}');
-	const char* Prefix = "{\"result\":{\"price\":";
-	client.stop();
+	//const char* Prefix = "{\"result\":{\"price\":";
+  const char* Prefix = "\"result\":{\"price\":";
+  client.stop();
 
 	Serial.println("Reply:");
 	Serial.println(Line);
@@ -349,7 +358,8 @@ auto& LedDisplay = *pLedDisplay;
   }
 
 	//	show alphabet
-	SetDisplay("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz!_.\"?",40);	
+  if ( ShowAlphaBet )
+	  SetDisplay("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz!_.\"?",40);	
   
   #endif
 }
@@ -465,7 +475,8 @@ bool InitWifi()
 		Serial.println("Please upgrade the firmware");
 	}
 
-	ListSsids();
+  if ( ShowSsids )
+  	ListSsids();
 
 	byte mac[6];
 	WiFi.macAddress(mac);
@@ -485,7 +496,7 @@ bool InitWifi()
 	Serial.print("connecting to ");
 	Serial.println(ssid);
 	SetDisplay( String(ssid)+String("...?") );
-	delay(1000);
+	delay(500);
 	#if !defined(ARDUINO_WIFI)
 	WiFi.mode(WIFI_STA);
 	#endif
@@ -534,11 +545,12 @@ bool InitWifi()
 		Serial.println("waiting to connect...");
 	    delay(500);
 	}
-	
+
+  SetDisplay("Wifi connected");
 	Serial.println("WiFi connected");
 	Serial.println("IP address: ");
 	IPAddress Ip = WiFi.localIP();
-	Serial.println(Ip);
+	//Serial.println(Ip);
 
 	auto IpString = IPAddressToString(Ip);
     SetDisplay(IpString);
@@ -588,33 +600,51 @@ void loop()
 
 	//	countdown changes
 	//	gr: on first display, show currency
-	const char* ChangeString = " GBP";
+	const char* ChangeString = "Gb";
 	if ( LastPriceMajor != -1 )
 	{
 		if ( PriceMajor == LastPriceMajor )
-			ChangeString = "   =";
+			ChangeString = " =";
 		else if ( PriceMajor > LastPriceMajor )
-			ChangeString = "  -+";
+			ChangeString = "-+";  //  to make a plus -|-
 		else
-			ChangeString = "   -";
+			ChangeString = " -";
 	}
 	else 
 	{
+    //  first (price==-1)
 		//LastPriceMajor = PriceMajor;
-		LastPriceMajor = (PriceMajor / 4) * 3;
+		LastPriceMajor = 0;//(PriceMajor / 4) * 3;
 	}
 
-	int Step = (PriceMajor > LastPriceMajor) ? 1 : -1;
-	for ( int i=LastPriceMajor;	i!=PriceMajor;	i+=Step )
-	{
-		String PriceString;
-		PriceString += i;
-		PriceString += '.';
-		PriceString += ChangeString;
-		SetDisplay(PriceString);
-  		delay(10);
-	}
-	LastPriceMajor = PriceMajor;
 
-	delaySecs(RefreshSecs);
+    int DisplayPrice = LastPriceMajor;
+    while( DisplayPrice != PriceMajor )
+    {
+      String PriceString;
+      PriceString += DisplayPrice;
+      PriceString += '.';
+      PriceString += ChangeString;
+      SetDisplay(PriceString);
+      delay(10);
+
+      int Step = 0;
+      int Diff = abs(DisplayPrice-PriceMajor);
+      Diff /= 50;
+      if ( Diff == 0 )
+      {
+        Diff = 1;
+      }
+
+      if ( DisplayPrice < PriceMajor )
+        Step = Diff;
+      else if ( DisplayPrice > PriceMajor )
+        Step = -Diff;
+
+      DisplayPrice += Step;
+    }
+	
+  LastPriceMajor = PriceMajor;
+
+  delaySecs(RefreshSecs);
 }
