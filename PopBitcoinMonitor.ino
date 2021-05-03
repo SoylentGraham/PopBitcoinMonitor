@@ -35,7 +35,7 @@
 #define LEDPIN_CLOCK  3
 #define LEDPIN_CS     4
 #define LED_COUNT     1
-#define LED_BRIGHTNESS  7
+#define LED_BRIGHTNESS  1
 
 #if defined(ENABLE_LED)
 #if defined(ALLOC_LED)
@@ -468,6 +468,7 @@ bool InitWifi()
 	if ( WiFi.status() == WL_CONNECTED )
     	return true;
 
+  WiFi.lowPowerMode();
 
 	String fv = WiFi.firmwareVersion();
 	if (fv < WIFI_FIRMWARE_LATEST_VERSION) 
@@ -600,15 +601,15 @@ void loop()
 
 	//	countdown changes
 	//	gr: on first display, show currency
-	const char* ChangeString = "Gb";
+	const char* ChangeString = " Gb";
 	if ( LastPriceMajor != -1 )
 	{
 		if ( PriceMajor == LastPriceMajor )
-			ChangeString = " =";
+			ChangeString = "  =";
 		else if ( PriceMajor > LastPriceMajor )
-			ChangeString = "-+";  //  to make a plus -|-
+			ChangeString = " -+";  //  to make a plus -|-
 		else
-			ChangeString = " -";
+			ChangeString = "  -";
 	}
 	else 
 	{
