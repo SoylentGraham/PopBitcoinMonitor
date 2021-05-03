@@ -59,6 +59,12 @@ const char* password = STAPSK;
 const char* host = "api.cryptowat.ch";
 const int httpsPort = 443;
 const char* request_url = "/markets/kraken/btcgbp/price";
+
+//  gr: crypytowatch free limit is 10 credits/24 hour
+//    1 fetch is 0.002 credits
+//    5000 a day
+//    86400 seconds per day
+//    should allow a request every 17.28 seconds
 const int RefreshSecs = 25;
 
 // Use web browser to view and copy
