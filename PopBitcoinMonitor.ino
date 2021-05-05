@@ -65,7 +65,9 @@ const char* request_url = "/markets/kraken/btcgbp/price";
 //    5000 a day
 //    86400 seconds per day
 //    should allow a request every 17.28 seconds
-const int RefreshSecs = 25;
+//  edit: requests are 0.005 each
+//    2000 a day = every 43.2 seconds
+const int RefreshSecs = 60;
 
 // Use web browser to view and copy
 // SHA1 fingerprint of the certificate
