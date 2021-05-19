@@ -46,19 +46,26 @@ LedControl LedDisplay = LedControl(LEDPIN_DATAIN,LEDPIN_CLOCK,LEDPIN_CS,LED_COUN
 #endif
 
 #define STASSID "Espolon"
-#define STAPSK  ""
+//#define STAPSK  ""
 //#define STASSID "ZaegerMeister2"
 //#define STAPSK  "Hello123456"
 //#define STASSID "Tequila"
-//#define STAPSK  "hello123"
+#define STAPSK  "Hello123"
 
 const char* ssid = STASSID;
 const char* password = STAPSK;
 
+#define Crypto "eth" //  btc
+#define Currency "gbp" //  usd
+#define CurrencyDisplay " GBP"
+#define CryptoDisplay " Eth"
+
 //	https://api.cryptowat.ch/markets/kraken/btcgbp/price
 const char* host = "api.cryptowat.ch";
 const int httpsPort = 443;
-const char* request_url = "/markets/kraken/btcgbp/price";
+#define REQUEST_URL(CRYPTO,CURRENCY)  "/markets/kraken/" CRYPTO CURRENCY "/price"
+const char* request_url = REQUEST_URL(Crypto,Currency);
+
 
 //  gr: crypytowatch free limit is 10 credits/24 hour
 //    1 fetch is 0.002 credits
@@ -68,6 +75,7 @@ const char* request_url = "/markets/kraken/btcgbp/price";
 //  edit: requests are 0.005 each
 //    2000 a day = every 43.2 seconds
 const int RefreshSecs = 60;
+const int RefreshMs = RefreshSecs * 1000;
 
 // Use web browser to view and copy
 // SHA1 fingerprint of the certificate
@@ -251,9 +259,11 @@ WiFiClientSecure client;
   client.setFingerprint(fingerprint);
 #endif
 
+  SetDisplay("Fetching price...");
   if (!client.connect(host, httpsPort)) 
   {
     Serial.println("connection failed");
+    SetDisplay(String("Failed to connect to ") + host);
     return false;
   }
 
@@ -265,6 +275,7 @@ WiFiClientSecure client;
                "Host: " + host + "\r\n" +
                "User-Agent: ESP8266_soylentgraham\r\n" +
                "Connection: close\r\n\r\n");
+
 
   Serial.println("request sent");
   while (client.connected()) {
@@ -607,53 +618,53 @@ void loop()
     return;
   }
 
-	//	countdown changes
-	//	gr: on first display, show currency
-	const char* ChangeString = " Gb";
-	if ( LastPriceMajor != -1 )
-	{
-		if ( PriceMajor == LastPriceMajor )
-			ChangeString = "  =";
-		else if ( PriceMajor > LastPriceMajor )
-			ChangeString = " -+";  //  to make a plus -|-
-		else
-			ChangeString = "  -";
-	}
-	else 
-	{
-    //  first (price==-1)
-		//LastPriceMajor = PriceMajor;
-		LastPriceMajor = 0;//(PriceMajor / 4) * 3;
-	}
 
+  int PriceTickDelayMs = 10;
+  int TextFlipDelay = 3*1000;
+  int DelayElapsed = 0;
+  for ( int i=0;  i<9000; i++ )
+  {
+      //  keep animating until we've "elapsed" enough time to do a refresh
+      if ( DelayElapsed > RefreshMs )
+        break;
+ 
+      int DisplayPrice = LastPriceMajor;
+      int PriceIteration = 0;
+      while( DisplayPrice != PriceMajor || PriceIteration==0 )
+      {          
+        PriceIteration++;
+        //  flip currency display every so often (1 sec)
+        if ( (PriceIteration % (TextFlipDelay/PriceTickDelayMs)) == 0 )
+          i++;
 
-    int DisplayPrice = LastPriceMajor;
-    while( DisplayPrice != PriceMajor )
-    {
-      String PriceString;
-      PriceString += DisplayPrice;
-      PriceString += '.';
-      PriceString += ChangeString;
-      SetDisplay(PriceString);
-      delay(10);
+        const char* TailString = (i & 1) ? CurrencyDisplay : CryptoDisplay;
+        String PriceString;
+        PriceString += DisplayPrice;
+        PriceString += ".";
+        PriceString += TailString;
+        SetDisplay(PriceString);
+        delay(PriceTickDelayMs);  DelayElapsed+=PriceTickDelayMs;
 
-      int Step = 0;
-      int Diff = abs(DisplayPrice-PriceMajor);
-      Diff /= 50;
-      if ( Diff == 0 )
-      {
-        Diff = 1;
-      }
+        int Step = 0;
+        int Diff = abs(DisplayPrice-PriceMajor);
+        Diff /= 60; //  bigger div = slower step
+        if ( Diff == 0 )
+        {
+          Diff = 1;
+        }
 
-      if ( DisplayPrice < PriceMajor )
-        Step = Diff;
-      else if ( DisplayPrice > PriceMajor )
-        Step = -Diff;
+        if ( DisplayPrice < PriceMajor )
+          Step = Diff;
+        else if ( DisplayPrice > PriceMajor )
+          Step = -Diff;
 
-      DisplayPrice += Step;
+        DisplayPrice += Step;
     }
-	
-  LastPriceMajor = PriceMajor;
+    
+    LastPriceMajor = PriceMajor;
+    delay(TextFlipDelay);  DelayElapsed+=TextFlipDelay;
+  }
+  
 
-  delaySecs(RefreshSecs);
+  //delaySecs(RefreshSecs);
 }
